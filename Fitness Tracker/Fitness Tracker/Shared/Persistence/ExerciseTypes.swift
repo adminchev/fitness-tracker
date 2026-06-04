@@ -1,5 +1,7 @@
 import Foundation
 
+/// What a movement is loaded with. Drives the unit shown on the set's load field
+/// (kg vs a band rating) and whether a load field is shown at all.
 enum Equipment: String, CaseIterable, Identifiable {
     case freeWeight
     case band
@@ -16,7 +18,7 @@ enum Equipment: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Unit label for the load field, or nil if the exercise carries no external load.
+    /// Unit label for the load field, or `nil` for bodyweight (no external load).
     var loadUnit: String? {
         switch self {
         case .freeWeight, .cable: "kg"
@@ -26,6 +28,8 @@ enum Equipment: String, CaseIterable, Identifiable {
     }
 }
 
+/// Which arm a set belongs to, for unilateral exercises. Stored on `WorkoutSet`
+/// as its raw value ("L" / "R") because CloudKit can't persist a bare enum.
 enum SetSide: String, CaseIterable, Identifiable {
     case left = "L"
     case right = "R"

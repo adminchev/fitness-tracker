@@ -1,6 +1,7 @@
 internal import SwiftUI
 import SwiftData
 
+/// Root tab bar: Workouts (logging), Progress (charts), Plans (templates).
 struct ContentView: View {
     var body: some View {
         TabView {

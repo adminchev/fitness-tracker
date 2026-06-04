@@ -1,5 +1,6 @@
 import Foundation
 
+/// The quantity a progress chart plots. All are per-session; the user toggles between them.
 enum ProgressMetric: String, CaseIterable, Identifiable {
     case oneRepMax = "1RM"
     case topWeight = "Top wt"
@@ -29,11 +30,13 @@ enum ProgressRange: String, CaseIterable, Identifiable {
     }
 }
 
-/// How closely a session's logged RPE matched the prescribed target.
+/// How closely a session's logged RPE matched the prescribed target (drives point colour).
 enum Adherence {
     case onTarget, near, off, unknown
 }
 
+/// One plotted point: a session's value for the chosen metric, plus the side, the
+/// RPE adherence (for colour), and a human-readable set breakdown (for the scrub header).
 struct MetricPoint: Identifiable {
     let id = UUID()
     let date: Date

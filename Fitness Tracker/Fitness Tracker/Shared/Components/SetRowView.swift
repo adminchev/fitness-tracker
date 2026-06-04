@@ -1,6 +1,8 @@
 internal import SwiftUI
 import SwiftData
 
+/// One set's input row: load (kg/band, hidden for bodyweight), reps *or* a hold
+/// timer, and RPE. All fields are blank-aware via `NumericField`.
 struct SetRowView: View {
     @Bindable var set: WorkoutSet
     let setNumber: Int

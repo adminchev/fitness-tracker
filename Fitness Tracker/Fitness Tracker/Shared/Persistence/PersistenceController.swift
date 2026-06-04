@@ -1,6 +1,9 @@
 import Foundation
 import SwiftData
 
+/// Owns the SwiftData `ModelContainer`. `shared` is the live, CloudKit-synced store;
+/// `preview` is an in-memory store for SwiftUI previews. Seeds the catalog + plans
+/// on first launch (when the store is empty).
 @MainActor
 struct PersistenceController {
     static let shared = PersistenceController()

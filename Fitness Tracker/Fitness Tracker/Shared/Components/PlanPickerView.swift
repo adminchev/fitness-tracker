@@ -1,6 +1,7 @@
 internal import SwiftUI
 import SwiftData
 
+/// Sheet for choosing which plan to start a workout from.
 struct PlanPickerView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss

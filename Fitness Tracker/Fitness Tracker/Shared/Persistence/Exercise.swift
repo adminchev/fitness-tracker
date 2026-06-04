@@ -1,15 +1,21 @@
 import Foundation
 import SwiftData
 
+/// One movement performed within a session. Equipment / timed / side flags are
+/// copied from the `ExerciseDefinition` at creation so the row can render
+/// correctly even if the catalog entry is later deleted.
 @Model final class Exercise {
     var name: String = ""
     var order: Int = 0
+    /// Prescription guidance copied from the plan, shown in the session ("3 × 15–20 · RPE 6").
     var targetSummary: String = ""
     var notes: String = ""
+    /// Holds log seconds instead of reps.
     var isTimed: Bool = false
+    /// Unilateral — sets carry an L/R side and the row shows a Left/Right tab.
     var tracksSides: Bool = false
     var equipmentRaw: String = Equipment.freeWeight.rawValue
-    /// Prescribed RPE for this exercise (parsed from the plan), used to auto-fill sets and score adherence.
+    /// Prescribed RPE; auto-fills each set's RPE and is the baseline for adherence colouring.
     var targetRPE: Double? = nil
     var workout: Workout? = nil
     var definition: ExerciseDefinition? = nil

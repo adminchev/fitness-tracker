@@ -34,6 +34,8 @@ struct ConsistencyBar: Identifiable {
     let count: Int
 }
 
+/// Backs `ProgressDashboardView`: fetches sessions + trained exercises and computes
+/// the consistency stats. Date-reading methods take an injectable `now:` for testing.
 @Observable final class ProgressDashboardViewModel {
     var workouts: [Workout] = []
     var trainedDefinitions: [ExerciseDefinition] = []

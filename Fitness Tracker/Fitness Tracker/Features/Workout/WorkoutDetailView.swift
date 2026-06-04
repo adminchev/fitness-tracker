@@ -1,6 +1,8 @@
 internal import SwiftUI
 import SwiftData
 
+/// One session being logged: editable date, each exercise as a row, and add-exercise.
+/// Observes the `Workout` directly (single-model-edit pattern) so edits persist live.
 struct WorkoutDetailView: View {
     @Bindable var workout: Workout
     @Environment(\.modelContext) private var modelContext

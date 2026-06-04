@@ -37,15 +37,15 @@ enum SampleData {
                 exercise.definition = template.definition
                 exercise.workout = workout
 
-                let sides = exercise.tracksSides ? ["L", "R"] : [""]
+                let sides: [SetSide?] = exercise.tracksSides ? [.left, .right] : [nil]
                 var order = 0
                 for side in sides {
-                    let sideBoost = side == "R" ? 1.06 : 1.0   // right arm a touch stronger
+                    let sideBoost = side == .right ? 1.06 : 1.0   // right arm a touch stronger
                     // One RPE offset per side per session → varied adherence colors.
                     let rpeOffset: Double = [-1.5, -0.5, 0.0, 0.5, 1.5].randomElement() ?? 0
                     for _ in 0..<max(template.targetSets, 1) {
                         let set = makeSet(template: template, exercise: exercise, session: session,
-                                          sideBoost: sideBoost, rpeOffset: rpeOffset, side: side, order: order)
+                                          sideBoost: sideBoost, rpeOffset: rpeOffset, side: side?.rawValue ?? "", order: order)
                         order += 1
                         context.insert(set)
                         set.exercise = exercise
