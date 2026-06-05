@@ -1,16 +1,20 @@
 import Foundation
 import SwiftData
 
+/// A canonical, reusable exercise — the "catalog" entry that both plans and logged
+/// sessions point at, so progress can be grouped across time. The catalog grows
+/// itself: the picker creates a new definition whenever you log a novel movement.
 @Model final class ExerciseDefinition {
     var name: String = ""
     var createdAt: Date = Date()
-    /// True for catalog entries created by the initial seed; these are protected from deletion.
+    /// Created by the initial seed; these are protected from deletion in the UI.
     var isSeeded: Bool = false
-    /// True for isometric holds — sets log a duration (seconds) instead of reps.
+    /// Isometric hold — sets log a duration (seconds) instead of reps.
     var isTimed: Bool = false
-    /// True for unilateral movements — sets carry an L/R side tag.
+    /// Unilateral movement — sets carry an L/R side tag.
     var tracksSides: Bool = false
     var equipmentRaw: String = Equipment.freeWeight.rawValue
+    /// `.nullify`: deleting a definition unlinks history but never deletes logged work.
     @Relationship(deleteRule: .nullify, inverse: \Exercise.definition) var exercises: [Exercise]? = []
     @Relationship(deleteRule: .nullify, inverse: \TemplateExercise.definition) var templateExercises: [TemplateExercise]? = []
 

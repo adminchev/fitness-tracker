@@ -2,6 +2,13 @@ internal import SwiftUI
 import SwiftData
 import Charts
 
+/// Per-exercise trend chart. Lets you pick a metric (1RM / top weight / volume / reps),
+/// a time window, and — for unilateral exercises — a side (Both / Left / Right).
+///
+/// `points` (and per-side / PR values) are cached in `@State` and recomputed only when
+/// the metric/range change, so scrubbing and side-toggling stay smooth on long windows.
+/// In "Both" view, colour encodes side (two lines); otherwise dots are coloured by how
+/// close the logged RPE was to the prescribed target.
 struct ExerciseProgressView: View {
     let definition: ExerciseDefinition
     @State private var metric: ProgressMetric = .oneRepMax
@@ -132,7 +139,7 @@ struct ExerciseProgressView: View {
                     .contentTransition(.numericText())
                 Text(unit).font(.title3).foregroundStyle(.secondary)
                 if !point.side.isEmpty {
-                    Text(point.side == "L" ? "Left" : "Right")
+                    Text(point.side == SetSide.left.rawValue ? "Left" : "Right")
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 8).padding(.vertical, 4)
                         .background(.quaternary, in: Capsule())
@@ -239,7 +246,7 @@ struct ExerciseProgressView: View {
                             y: .value(metric.rawValue, point.value),
                             series: .value("Side", point.side)
                         )
-                        .foregroundStyle(by: .value("Side", point.side == "L" ? "Left" : "Right"))
+                        .foregroundStyle(by: .value("Side", point.side == SetSide.left.rawValue ? "Left" : "Right"))
                         .interpolationMethod(.catmullRom)
                     } else {
                         AreaMark(x: .value("Date", point.date), y: .value(metric.rawValue, point.value))
@@ -262,7 +269,7 @@ struct ExerciseProgressView: View {
                         .foregroundStyle(Color.secondary.opacity(0.3))
                         .lineStyle(StrokeStyle(lineWidth: 1))
                     PointMark(x: .value("Date", selectedPoint.date), y: .value(metric.rawValue, selectedPoint.value))
-                        .foregroundStyle(isBoth ? (selectedPoint.side == "L" ? Color.blue : Color.orange) : accent)
+                        .foregroundStyle(isBoth ? (selectedPoint.side == SetSide.left.rawValue ? Color.blue : Color.orange) : accent)
                         .symbolSize(110)
                 }
             }

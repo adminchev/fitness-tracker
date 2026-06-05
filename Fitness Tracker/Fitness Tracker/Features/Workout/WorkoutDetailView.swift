@@ -1,6 +1,8 @@
 internal import SwiftUI
 import SwiftData
 
+/// Overview of one session: editable date, a tappable list of its exercises (each
+/// opens the focused logger), and add-exercise. Observes the `Workout` directly.
 struct WorkoutDetailView: View {
     @Bindable var workout: Workout
     @Environment(\.modelContext) private var modelContext
@@ -19,11 +21,15 @@ struct WorkoutDetailView: View {
                 }
             }
 
-            ForEach(sortedExercises) { exercise in
-                ExerciseRowView(exercise: exercise)
-            }
+            Section("Exercises") {
+                ForEach(sortedExercises) { exercise in
+                    NavigationLink {
+                        ExerciseFocusView(workout: workout, startExerciseID: exercise.persistentModelID)
+                    } label: {
+                        exerciseRow(exercise)
+                    }
+                }
 
-            Section {
                 Button {
                     showingExercisePicker = true
                 } label: {
@@ -41,14 +47,23 @@ struct WorkoutDetailView: View {
         .onDisappear(perform: trimEmptySets)
     }
 
-    /// Remove pre-created sets that were never filled in, so an under-shot
-    /// session doesn't leave empty 0×0 rows behind.
-    private func trimEmptySets() {
-        for exercise in workout.exercises ?? [] {
-            for set in exercise.sets ?? [] where set.reps == nil && set.weight == nil && set.durationSeconds == nil {
-                modelContext.delete(set)
-            }
+    private func exerciseRow(_ exercise: Exercise) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(exercise.name)
+                .font(.headline)
+            Text(summary(for: exercise))
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
+    }
+
+    private func summary(for exercise: Exercise) -> String {
+        let sets = exercise.sets ?? []
+        let logged = sets.filter { $0.reps != nil || $0.weight != nil || $0.durationSeconds != nil }.count
+        if !exercise.targetSummary.isEmpty {
+            return logged > 0 ? "\(exercise.targetSummary)  ·  \(logged) logged" : exercise.targetSummary
+        }
+        return logged > 0 ? "\(logged) sets logged" : "Tap to log"
     }
 
     private func addExercise(_ definition: ExerciseDefinition) {
@@ -59,6 +74,19 @@ struct WorkoutDetailView: View {
         modelContext.insert(exercise)
         exercise.definition = definition
         exercise.workout = workout
+    }
+
+    /// Remove leftover empty sets — but only in exercises you actually started, so an
+    /// untouched exercise keeps its prescribed (pre-created) sets for next time.
+    private func trimEmptySets() {
+        for exercise in workout.exercises ?? [] {
+            let sets = exercise.sets ?? []
+            let started = sets.contains { $0.reps != nil || $0.weight != nil || $0.durationSeconds != nil }
+            guard started else { continue }
+            for set in sets where set.reps == nil && set.weight == nil && set.durationSeconds == nil {
+                modelContext.delete(set)
+            }
+        }
     }
 }
 

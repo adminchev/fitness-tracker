@@ -1,6 +1,8 @@
 internal import SwiftUI
 import SwiftData
 
+/// The Workouts tab: lists past sessions, starts a new one from a plan, and
+/// (debug only) generates sample history. Uses a ViewModel since it fetches a list.
 struct WorkoutListView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel = WorkoutListViewModel()

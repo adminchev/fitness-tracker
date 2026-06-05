@@ -1,6 +1,8 @@
 internal import SwiftUI
 import SwiftData
 
+/// Edits one plan's prescribed exercises (add / delete / reorder). Observes the
+/// `TrainingPlan` directly. Seeded exercises are protected from deletion.
 struct TrainingPlanDetailView: View {
     @Bindable var plan: TrainingPlan
     @Environment(\.modelContext) private var modelContext

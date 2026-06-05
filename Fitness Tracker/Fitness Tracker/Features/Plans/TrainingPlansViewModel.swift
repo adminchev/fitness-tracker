@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 
+/// Backs `TrainingPlansView`: fetches, creates, and deletes plans.
 @Observable final class TrainingPlansViewModel {
     var plans: [TrainingPlan] = []
 

@@ -2,6 +2,8 @@ internal import SwiftUI
 import SwiftData
 import Charts
 
+/// The Progress tab landing screen: a consistency summary (sessions per week/day +
+/// avg recovery) and a list of trained exercises that drill into `ExerciseProgressView`.
 struct ProgressDashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel = ProgressDashboardViewModel()

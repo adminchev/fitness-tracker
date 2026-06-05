@@ -1,11 +1,16 @@
 internal import SwiftUI
 import SwiftData
 
+/// One set's input row: load (kg/band, hidden for bodyweight), reps *or* a hold
+/// timer, and RPE. All fields are blank-aware via `NumericField`.
 struct SetRowView: View {
     @Bindable var set: WorkoutSet
     let setNumber: Int
     var isTimed: Bool = false
     var equipment: Equipment = .freeWeight
+    var weightSuggestions: [Double] = []
+    var repSuggestions: [Double] = []
+    @AppStorage(AppSettings.effortScaleKey) private var effortRaw = EffortScale.rpe.rawValue
 
     var body: some View {
         HStack(spacing: 12) {
@@ -16,7 +21,7 @@ struct SetRowView: View {
 
             if let unit = equipment.loadUnit {
                 cell(unit) {
-                    NumericField(placeholder: "—", value: $set.weight)
+                    NumericField(placeholder: "—", value: $set.weight, suggestions: weightSuggestions)
                 }
             }
             if isTimed {
@@ -25,11 +30,11 @@ struct SetRowView: View {
                 }
             } else {
                 cell("reps") {
-                    NumericField(placeholder: "—", value: intBinding($set.reps), isInteger: true)
+                    NumericField(placeholder: "—", value: intBinding($set.reps), isInteger: true, suggestions: repSuggestions)
                 }
             }
-            cell("RPE") {
-                NumericField(placeholder: "—", value: $set.rpe)
+            cell(effortRaw == EffortScale.rir.rawValue ? "RIR" : "RPE") {
+                EffortField(rpe: $set.rpe)
             }
         }
         .padding(.vertical, 4)

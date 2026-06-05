@@ -1,6 +1,8 @@
 import Foundation
 import SwiftData
 
+/// Backs `WorkoutListView`: fetches sessions, expands a plan into a new workout
+/// (pre-creating both arms' sets + RPE for unilateral exercises), and deletes.
 @Observable final class WorkoutListViewModel {
     var workouts: [Workout] = []
     var errorMessage: String?
@@ -36,12 +38,13 @@ import SwiftData
             exercise.definition = template.definition
             exercise.workout = workout
             // Pre-create the prescribed sets, RPE pre-filled to the target.
-            // Unilateral exercises get a Left and a Right group.
-            let sides = exercise.tracksSides ? ["L", "R"] : [""]
+            // Unilateral exercises get both arms, lead arm first.
+            let lead = AppSettings.leadSide
+            let sides: [SetSide?] = exercise.tracksSides ? [lead, lead.opposite] : [nil]
             var order = 0
             for side in sides {
                 for _ in 0..<max(template.targetSets, 0) {
-                    let set = WorkoutSet(rpe: template.targetRPEValue, side: side, order: order)
+                    let set = WorkoutSet(rpe: template.targetRPEValue, side: side?.rawValue ?? "", order: order)
                     order += 1
                     context.insert(set)
                     set.exercise = exercise

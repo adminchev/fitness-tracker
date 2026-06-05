@@ -11,6 +11,35 @@ enum SeedData {
         seed(context)
     }
 
+    /// Canonical flags for the seeded movements: (equipment, isTimed, tracksSides).
+    private static let canonicalFlags: [String: (Equipment, Bool, Bool)] = [
+        "Wrist flexion": (.freeWeight, false, true),
+        "Pronation": (.band, false, true),
+        "Hammer curls": (.freeWeight, false, true),
+        "Extensor band opens": (.band, false, true),
+        "Cupping holds": (.freeWeight, true, true),
+        "Side pressure isometrics": (.band, true, true),
+        "Back pressure rows": (.band, false, true),
+        "Pin holds (match-angle)": (.freeWeight, true, true),
+        "Full match simulation": (.bodyweight, false, true),
+        "Wrist roller": (.freeWeight, false, false),
+    ]
+
+    /// Corrects flags on already-seeded catalog entries — for stores that were seeded
+    /// before a flag changed (e.g. making Hammer curls unilateral). Idempotent.
+    /// Only touches seeded definitions; never alters logged sessions.
+    static func reconcileSeededDefinitions(_ context: ModelContext) {
+        let definitions = (try? context.fetch(FetchDescriptor<ExerciseDefinition>())) ?? []
+        var changed = false
+        for definition in definitions where definition.isSeeded {
+            guard let (equipment, timed, sides) = canonicalFlags[definition.name] else { continue }
+            if definition.equipmentRaw != equipment.rawValue { definition.equipmentRaw = equipment.rawValue; changed = true }
+            if definition.isTimed != timed { definition.isTimed = timed; changed = true }
+            if definition.tracksSides != sides { definition.tracksSides = sides; changed = true }
+        }
+        if changed { try? context.save() }
+    }
+
     static func seed(_ context: ModelContext) {
         func define(_ name: String, equipment: Equipment = .freeWeight, timed: Bool = false, sides: Bool = false) -> ExerciseDefinition {
             let d = ExerciseDefinition(name: name)
@@ -24,8 +53,8 @@ enum SeedData {
 
         let wristFlexion = define("Wrist flexion", equipment: .freeWeight, sides: true)
         let pronation = define("Pronation", equipment: .band, sides: true)
-        let hammerCurls = define("Hammer curls", equipment: .freeWeight)
-        let extensorOpens = define("Extensor band opens", equipment: .band)
+        let hammerCurls = define("Hammer curls", equipment: .freeWeight, sides: true)
+        let extensorOpens = define("Extensor band opens", equipment: .band, sides: true)
         let cuppingHolds = define("Cupping holds", equipment: .freeWeight, timed: true, sides: true)
         let sidePressure = define("Side pressure isometrics", equipment: .band, timed: true, sides: true)
         let backPressureRows = define("Back pressure rows", equipment: .band, sides: true)

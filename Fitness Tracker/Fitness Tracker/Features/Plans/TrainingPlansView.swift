@@ -1,6 +1,8 @@
 internal import SwiftUI
 import SwiftData
 
+/// The Plans tab: lists training plans and creates new ones. Seeded plans show a
+/// lock and can't be deleted.
 struct TrainingPlansView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel = TrainingPlansViewModel()

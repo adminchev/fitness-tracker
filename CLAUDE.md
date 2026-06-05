@@ -56,11 +56,17 @@ struct OldView: View {
 }
 ```
 
+### Two view patterns — both are correct; pick by screen type
+This project uses **two complementary patterns**. Don't force everything into one.
+
+**1. List / dashboard screens → `@Observable` ViewModel.** Screens that fetch collections own a `@Observable final class …ViewModel` that runs `FetchDescriptor` queries and exposes results. The View holds it with `@State private var viewModel = …` and passes `ModelContext` into its methods. Examples: `WorkoutListView`, `TrainingPlansView`, `ProgressDashboardView`.
+
+**2. Single-model edit screens → observe the `@Model` directly.** Screens that edit one SwiftData object take it as `@Bindable var model: SomeModel` and keep their small mutation helpers in the View — there is **no** ViewModel. Routing a `@Model` through a `let` on an `@Observable` class breaks SwiftData change tracking, so the view must observe the model directly. Examples: `WorkoutDetailView`, `TrainingPlanDetailView`, `ExerciseRowView`, `ExerciseProgressView`.
+
 ### Rules
-- ViewModels are `@Observable final class` — one per feature screen
-- Views are `struct` — no business logic, no direct SwiftData queries
-- Pass the model context to ViewModels via init, not via `@Environment(\.modelContext)` in the ViewModel
-- Views may read `@Environment(\.modelContext)` only to pass it into a ViewModel
+- ViewModels are `@Observable final class`, suffixed `ViewModel`; pass `ModelContext` into methods rather than storing it.
+- Views are `struct`. Heavy or pure calculation lives in a dedicated type (e.g. `ProgressCalculator`), never inline in `body`.
+- Never use `@ObservableObject` / `@StateObject` / `@Published`, Combine, or UIKit.
 
 ---
 
@@ -70,26 +76,34 @@ The Xcode project lives at `Fitness Tracker/Fitness Tracker/` within the repo ro
 
 ```
 Fitness Tracker/Fitness Tracker/
+  Fitness_TrackerApp.swift     # @main entry point
+  ContentView.swift            # Top-level TabView (Workouts / Progress / Plans)
   Features/
     Workout/
-      WorkoutView.swift
-      WorkoutViewModel.swift
-      WorkoutDetailView.swift
-      WorkoutDetailViewModel.swift
+      WorkoutListView.swift        # list of sessions (+ debug sample-data menu)
+      WorkoutListViewModel.swift   # fetch + create-from-plan + delete
+      WorkoutDetailView.swift      # one session: date, exercises, add-exercise
+      ExerciseRowView.swift        # one exercise inside a session (L/R tab, sets)
+    Plans/
+      TrainingPlansView.swift / TrainingPlansViewModel.swift
+      TrainingPlanDetailView.swift # edit a plan's exercises
     Progress/
-      ProgressView.swift
-      ProgressViewModel.swift
+      ProgressDashboardView.swift / ProgressDashboardViewModel.swift  # consistency + exercise list
+      ExerciseProgressView.swift   # per-exercise charts (Swift Charts)
+      ProgressMetrics.swift        # ProgressCalculator + metric/range enums (pure logic)
   Shared/
-    Components/        # Reusable SwiftUI views — data-agnostic, params only
-    Extensions/        # Swift/SwiftUI extensions
-    Persistence/       # All @Model classes + ModelContainer setup
-      Workout.swift
-      Exercise.swift
-      WorkoutSet.swift
-      PersistenceController.swift
-  App/
-    Fitness_TrackerApp.swift   # @main entry point
-    ContentView.swift          # Top-level navigation (TabView)
+    Components/        # Reusable, data-agnostic views
+      SetRowView.swift, NumericField.swift, TimedSetField.swift,
+      ExercisePickerView.swift, PlanPickerView.swift
+    Extensions/
+      Ordered.swift                # `sortedByOrder()` for order-bearing models
+    Persistence/       # All @Model classes + container + seeding
+      Workout.swift, Exercise.swift, WorkoutSet.swift,
+      TrainingPlan.swift, TemplateExercise.swift, ExerciseDefinition.swift,
+      ExerciseTypes.swift          # Equipment + SetSide enums
+      PersistenceController.swift  # ModelContainer (CloudKit) + seed-on-empty
+      SeedData.swift               # 3-phase program + catalog (first launch)
+      SampleData.swift             # #if DEBUG demo-history generator
 ```
 
 New features go in `Features/[FeatureName]/`. Reusable UI goes in `Shared/Components/`. Never mix feature logic into Shared.
@@ -100,29 +114,50 @@ New features go in `Features/[FeatureName]/`. Reusable UI goes in `Shared/Compon
 
 All `@Model` classes live in `Shared/Persistence/`. The canonical models:
 
+Six models. Relationships always declare an inverse (see rules below). Set fields are
+**optional** so empty means "not recorded" (vs. a real 0).
+
 ```swift
-@Model final class Workout {
+@Model final class Workout {            // one training session
     var date: Date = Date()
     var name: String = ""
+    @Relationship(deleteRule: .nullify) var trainingPlan: TrainingPlan? = nil
     @Relationship(deleteRule: .cascade, inverse: \Exercise.workout) var exercises: [Exercise]? = []
 }
 
-@Model final class Exercise {
+@Model final class Exercise {           // one movement within a session
     var name: String = ""
     var order: Int = 0
-    var workout: Workout? = nil   // inverse of Workout.exercises
+    var targetSummary: String = ""      // copied from the plan for in-session guidance
+    var notes: String = ""
+    var isTimed: Bool = false           // holds log seconds instead of reps
+    var tracksSides: Bool = false       // unilateral → per-set L/R
+    var equipmentRaw: String = …        // Equipment raw value (kg vs band unit)
+    var targetRPE: Double? = nil        // prescribed RPE (auto-fills sets, scores adherence)
+    var workout: Workout? = nil
+    var definition: ExerciseDefinition? = nil
     @Relationship(deleteRule: .cascade, inverse: \WorkoutSet.exercise) var sets: [WorkoutSet]? = []
 }
 
-@Model final class WorkoutSet {
-    var reps: Int = 0
-    var weight: Double = 0.0
+@Model final class WorkoutSet {         // one logged set
+    var reps: Int? = nil
+    var weight: Double? = nil           // load: kg, or band rating for bands
+    var durationSeconds: Int? = nil     // for timed holds
+    var rpe: Double? = nil
+    var side: String = ""               // "" / SetSide.left.rawValue / .right.rawValue
     var order: Int = 0
-    var exercise: Exercise? = nil   // inverse of Exercise.sets
+    var exercise: Exercise? = nil
 }
+
+// Catalog + plan side:
+@Model final class ExerciseDefinition   // canonical, reusable exercise (self-populating catalog)
+@Model final class TrainingPlan          // a named plan (e.g. "Phase 1")
+@Model final class TemplateExercise      // a prescribed exercise in a plan (sets/reps/RPE/rest/notes)
 ```
 
-When adding new models, follow this same structure.
+`ExerciseDefinition` carries `equipmentRaw`, `isTimed`, `tracksSides`, plus `isSeeded`
+(seeded catalog/plan items are protected from deletion). When adding models, follow
+this structure: optional/defaulted fields, declared inverses, raw-value enums.
 
 ---
 
@@ -167,7 +202,7 @@ Follow [Swift API Design Guidelines](https://www.swift.org/documentation/api-des
 - No force unwrap (`!`) outside of tests
 - No hardcoded data in previews — use `#Preview` with a temporary in-memory `ModelContainer`
 - No singletons for state — use `@Observable` ViewModels injected via `@State`
-- No logic in View `body` — extract to ViewModel methods
+- No heavy/pure computation inline in `body` — put it in `ProgressCalculator` or a ViewModel. (Small mutation helpers on single-model edit views are fine — see the two-pattern note above.)
 
 ---
 
@@ -200,6 +235,20 @@ xcodebuild -scheme "Fitness Tracker" -destination 'platform=iOS Simulator,name=i
 # Clean build
 xcodebuild -scheme "Fitness Tracker" clean
 ```
+
+## Testing
+
+Unit tests use **Swift Testing** (`@Test` / `#expect`) in the `Fitness TrackerTests` target,
+and cover the pure logic: `ProgressCalculator`, prescription parsing, consistency math
+(date-injected via a `now:` parameter), and `createWorkout`. Run with ⌘U or:
+
+```bash
+xcodebuild test -scheme "Fitness Tracker" -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:"Fitness TrackerTests"
+```
+
+Test the math, not the views. Functions that read the clock take an injectable `now:`
+so they're deterministic. To explore the UI with realistic data, use the debug-only
+🐞 menu on the Workouts tab ("Load sample history").
 
 ---
 
