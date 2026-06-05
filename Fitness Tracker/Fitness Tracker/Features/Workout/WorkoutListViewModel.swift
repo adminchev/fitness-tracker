@@ -38,8 +38,9 @@ import SwiftData
             exercise.definition = template.definition
             exercise.workout = workout
             // Pre-create the prescribed sets, RPE pre-filled to the target.
-            // Unilateral exercises get a Left and a Right group.
-            let sides: [SetSide?] = exercise.tracksSides ? [.left, .right] : [nil]
+            // Unilateral exercises get both arms, lead arm first.
+            let lead = AppSettings.leadSide
+            let sides: [SetSide?] = exercise.tracksSides ? [lead, lead.opposite] : [nil]
             var order = 0
             for side in sides {
                 for _ in 0..<max(template.targetSets, 0) {

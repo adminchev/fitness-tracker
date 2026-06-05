@@ -34,4 +34,5 @@ enum SetSide: String, CaseIterable, Identifiable {
     case left = "L"
     case right = "R"
     var id: String { rawValue }
+    var opposite: SetSide { self == .left ? .right : .left }
 }

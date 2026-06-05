@@ -222,6 +222,94 @@ struct ConsistencyTests {
 }
 
 @MainActor
+struct SeedReconcileTests {
+
+    @Test func reconcileFixesSeededFlagsOnly() throws {
+        let container = try ModelContainer(
+            for: Workout.self, Exercise.self, WorkoutSet.self,
+            TrainingPlan.self, TemplateExercise.self, ExerciseDefinition.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = container.mainContext
+
+        // A seeded entry with a stale flag (bilateral) that should be corrected.
+        let stale = ExerciseDefinition(name: "Hammer curls")
+        stale.isSeeded = true
+        stale.tracksSides = false
+        context.insert(stale)
+
+        // A user's own definition that happens to share the name — must NOT be touched.
+        let custom = ExerciseDefinition(name: "Hammer curls")
+        custom.isSeeded = false
+        custom.tracksSides = false
+        context.insert(custom)
+
+        // A seeded entry not in the canonical table — left alone.
+        let unknown = ExerciseDefinition(name: "Zercher hold")
+        unknown.isSeeded = true
+        context.insert(unknown)
+
+        SeedData.reconcileSeededDefinitions(context)
+
+        #expect(stale.tracksSides == true)        // corrected
+        #expect(custom.tracksSides == false)      // user definition untouched
+        #expect(unknown.tracksSides == false)     // unknown name untouched
+    }
+}
+
+@MainActor
+struct BackupServiceTests {
+
+    @Test func exportThenRestoreRebuildsTheGraph() throws {
+        func container() throws -> ModelContainer {
+            try ModelContainer(
+                for: Workout.self, Exercise.self, WorkoutSet.self,
+                TrainingPlan.self, TemplateExercise.self, ExerciseDefinition.self,
+                configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            )
+        }
+
+        // Build a small graph in the source store.
+        let source = try container()
+        let sourceContext = source.mainContext
+        let definition = ExerciseDefinition(name: "Wrist flexion")
+        definition.tracksSides = true
+        definition.equipmentRaw = Equipment.band.rawValue
+        sourceContext.insert(definition)
+        let workout = Workout(name: "Day 1", date: Date())
+        sourceContext.insert(workout)
+        let exercise = Exercise(name: "Wrist flexion", order: 0)
+        exercise.tracksSides = true
+        sourceContext.insert(exercise)
+        exercise.workout = workout
+        exercise.definition = definition
+        let set = WorkoutSet(reps: 12, weight: 40, rpe: 6, side: SetSide.left.rawValue, order: 0)
+        sourceContext.insert(set)
+        set.exercise = exercise
+
+        let data = try BackupService.export(sourceContext)
+
+        // Restore into a separate, fresh store.
+        let destination = try container()
+        try BackupService.restore(from: data, into: destination.mainContext)
+        let context = destination.mainContext
+
+        #expect(try context.fetch(FetchDescriptor<ExerciseDefinition>()).count == 1)
+        #expect(try context.fetch(FetchDescriptor<Workout>()).count == 1)
+
+        let restoredSets = try context.fetch(FetchDescriptor<WorkoutSet>())
+        #expect(restoredSets.count == 1)
+        #expect(restoredSets.first?.weight == 40)
+        #expect(restoredSets.first?.side == "L")
+
+        // Cross-reference (exercise → definition) rebuilt by name.
+        let restoredWorkout = try context.fetch(FetchDescriptor<Workout>()).first
+        #expect(restoredWorkout?.exercises?.first?.definition?.name == "Wrist flexion")
+        #expect(try context.fetch(FetchDescriptor<ExerciseDefinition>()).first?.equipment == .band)
+    }
+}
+
+@MainActor
 struct WorkoutCreationTests {
 
     @Test func createWorkoutExpandsBothArmsAndPrefillsRPE() throws {

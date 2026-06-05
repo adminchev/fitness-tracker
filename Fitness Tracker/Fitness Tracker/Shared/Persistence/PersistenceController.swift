@@ -31,5 +31,6 @@ struct PersistenceController {
             fatalError("Failed to create ModelContainer: \(error)")
         }
         SeedData.seedIfNeeded(container.mainContext)
+        SeedData.reconcileSeededDefinitions(container.mainContext)
     }
 }
