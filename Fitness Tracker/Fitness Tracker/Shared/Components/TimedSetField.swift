@@ -5,6 +5,8 @@ internal import SwiftUI
 /// shows the live time in red; idle, it's an ordinary editable number.
 struct TimedSetField: View {
     @Binding var seconds: Int?
+    /// Enlarges the start/stop button for the big-button logging layout.
+    var large: Bool = false
     @State private var startDate: Date?
 
     var body: some View {
@@ -17,27 +19,22 @@ struct TimedSetField: View {
                         .frame(maxWidth: .infinity)
                 }
             } else {
-                NumericField(placeholder: "—", value: secondsAsDouble, isInteger: true)
+                NumericField(placeholder: "—", value: $seconds.asDouble, isInteger: true)
             }
 
             Button {
                 toggle()
             } label: {
                 Image(systemName: startDate == nil ? "timer" : "stop.fill")
-                    .font(.footnote.weight(.bold))
+                    .font(large ? .title2.weight(.bold) : .footnote.weight(.bold))
                     .foregroundStyle(startDate == nil ? Color.accentColor : .red)
-                    .frame(width: 22, height: 22)
+                    .frame(width: large ? 52 : 22, height: large ? 52 : 22)
+                    .background(large ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear),
+                                in: RoundedRectangle(cornerRadius: 12))
             }
             .buttonStyle(.plain)
             .contentShape(.rect)
         }
-    }
-
-    private var secondsAsDouble: Binding<Double?> {
-        Binding(
-            get: { seconds.map(Double.init) },
-            set: { seconds = $0.map { Int($0) } }
-        )
     }
 
     private func elapsed(from start: Date, to now: Date) -> Int {

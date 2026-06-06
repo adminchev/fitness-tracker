@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import SwiftData
+import SwiftUI
 @testable import Fitness_Tracker
 
 @MainActor
@@ -351,5 +352,39 @@ struct WorkoutCreationTests {
         let plain = exercises[1]
         #expect(!plain.tracksSides)
         #expect((plain.sets ?? []).count == 4)
+    }
+}
+
+@MainActor
+struct NumericBridgeTests {
+
+    @Test func asDoubleRoundTripsAndTruncates() {
+        var stored: Int? = nil
+        let bridged = Binding<Int?>(get: { stored }, set: { stored = $0 }).asDouble
+
+        bridged.wrappedValue = 12.0
+        #expect(stored == 12)
+        #expect(bridged.wrappedValue == 12.0)
+
+        // Reps are whole numbers — decimals truncate toward zero rather than round.
+        bridged.wrappedValue = 8.7
+        #expect(stored == 8)
+
+        bridged.wrappedValue = nil      // blank clears the model (no data)
+        #expect(stored == nil)
+        #expect(bridged.wrappedValue == nil)
+    }
+}
+
+struct EquipmentTests {
+
+    /// The stepper and the suggestion chips both read `loadStep`, so this is the
+    /// single source of truth that keeps bands at ±1 and plates at ±2.5.
+    @Test func loadStepMatchesEquipment() {
+        #expect(Equipment.freeWeight.loadStep == 2.5)
+        #expect(Equipment.cable.loadStep == 2.5)
+        #expect(Equipment.band.loadStep == 1)
+        #expect(Equipment.bodyweight.loadStep == 0)
+        #expect(Equipment.bodyweight.loadUnit == nil)
     }
 }

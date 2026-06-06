@@ -1,8 +1,9 @@
 internal import SwiftUI
 import SwiftData
 
-/// One set's input row: load (kg/band, hidden for bodyweight), reps *or* a hold
-/// timer, and RPE. All fields are blank-aware via `NumericField`.
+/// One set's input row. This is the single entry point the logger uses; it picks the
+/// concrete control layout from the user's Settings choice and forwards everything to
+/// it. To add a new layout: add a `LogLayout` case and a view, then a `case` below.
 struct SetRowView: View {
     @Bindable var set: WorkoutSet
     let setNumber: Int
@@ -10,53 +11,18 @@ struct SetRowView: View {
     var equipment: Equipment = .freeWeight
     var weightSuggestions: [Double] = []
     var repSuggestions: [Double] = []
-    @AppStorage(AppSettings.effortScaleKey) private var effortRaw = EffortScale.rpe.rawValue
+    @AppStorage(AppSettings.logLayoutKey) private var layoutRaw = LogLayout.compact.rawValue
+
+    private var layout: LogLayout { LogLayout(rawValue: layoutRaw) ?? .compact }
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text("\(setNumber)")
-                .font(.headline.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 24, alignment: .leading)
-
-            if let unit = equipment.loadUnit {
-                cell(unit) {
-                    NumericField(placeholder: "—", value: $set.weight, suggestions: weightSuggestions)
-                }
-            }
-            if isTimed {
-                cell("sec") {
-                    TimedSetField(seconds: $set.durationSeconds)
-                }
-            } else {
-                cell("reps") {
-                    NumericField(placeholder: "—", value: intBinding($set.reps), isInteger: true, suggestions: repSuggestions)
-                }
-            }
-            cell(effortRaw == EffortScale.rir.rawValue ? "RIR" : "RPE") {
-                EffortField(rpe: $set.rpe)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-
-    private func intBinding(_ source: Binding<Int?>) -> Binding<Double?> {
-        Binding(
-            get: { source.wrappedValue.map(Double.init) },
-            set: { source.wrappedValue = $0.map { Int($0) } }
-        )
-    }
-
-    private func cell<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(spacing: 2) {
-            content()
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+        switch layout {
+        case .compact:
+            CompactSetRow(set: set, setNumber: setNumber, isTimed: isTimed, equipment: equipment,
+                          weightSuggestions: weightSuggestions, repSuggestions: repSuggestions)
+        case .bigButtons:
+            BigButtonSetRow(set: set, setNumber: setNumber, isTimed: isTimed, equipment: equipment,
+                            weightSuggestions: weightSuggestions, repSuggestions: repSuggestions)
         }
     }
 }

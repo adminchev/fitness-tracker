@@ -153,12 +153,15 @@ private struct FocusedExercisePage: View {
         exercise.tracksSides ? selectedSide : nil
     }
 
-    /// Weight chips for a set: last session's matching weight ± plate steps.
+    /// Weight chips for a set: last session's matching weight ± the equipment's load
+    /// step (so bands suggest ±1, plates ±2.5 — matching the steppers).
     private func weightSuggestions(forIndex index: Int) -> [Double] {
         let prior = previousSets(on: activeSide)
         let base = prior.indices.contains(index) ? prior[index].weight : sets(on: activeSide).last?.weight
-        guard let base, base > 0 else { return [] }
-        return Array(Set([base - 5, base - 2.5, base, base + 2.5, base + 5].filter { $0 > 0 })).sorted()
+        let step = exercise.equipment.loadStep
+        guard let base, base > 0, step > 0 else { return [] }
+        let candidates = [base - 2 * step, base - step, base, base + step, base + 2 * step]
+        return Array(Set(candidates.filter { $0 > 0 })).sorted()
     }
 
     /// Rep chips for a set: last session's matching reps ± a couple.

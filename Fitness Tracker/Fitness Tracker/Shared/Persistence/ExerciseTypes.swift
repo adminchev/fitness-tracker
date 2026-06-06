@@ -26,6 +26,16 @@ enum Equipment: String, CaseIterable, Identifiable {
         case .bodyweight: nil
         }
     }
+
+    /// How much one nudge of the load changes it — shared by the big-button steppers
+    /// and the suggestion chips so both speak the same increment. 0 = no external load.
+    var loadStep: Double {
+        switch self {
+        case .freeWeight, .cable: 2.5
+        case .band: 1
+        case .bodyweight: 0
+        }
+    }
 }
 
 /// Which arm a set belongs to, for unilateral exercises. Stored on `WorkoutSet`

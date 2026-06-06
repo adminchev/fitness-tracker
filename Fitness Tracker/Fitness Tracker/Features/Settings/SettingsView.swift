@@ -9,6 +9,7 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @AppStorage(AppSettings.leadSideKey) private var leadSide = SetSide.right.rawValue
     @AppStorage(AppSettings.effortScaleKey) private var effortScale = EffortScale.rpe.rawValue
+    @AppStorage(AppSettings.logLayoutKey) private var logLayout = LogLayout.compact.rawValue
 
     @State private var exportDocument: BackupDocument?
     @State private var isExporting = false
@@ -29,10 +30,15 @@ struct SettingsView: View {
                         Text("RPE").tag(EffortScale.rpe.rawValue)
                         Text("RIR").tag(EffortScale.rir.rawValue)
                     }
+                    Picker("Set controls", selection: $logLayout) {
+                        ForEach(LogLayout.allCases) { layout in
+                            Text(layout.label).tag(layout.rawValue)
+                        }
+                    }
                 } header: {
                     Text("Logging")
                 } footer: {
-                    Text("Lead arm: which side is selected and pre-created first for unilateral exercises. Effort scale: RPE (10 = failure) or RIR (0 = failure, reps in reserve).")
+                    Text("Lead arm: which side is selected and pre-created first for unilateral exercises. Effort scale: RPE (10 = failure) or RIR (0 = failure, reps in reserve). Set controls: \(layoutDetail).")
                 }
 
                 Section {
@@ -86,6 +92,11 @@ struct SettingsView: View {
                 Text("This erases your current workouts, plans, and exercises, then imports the file. It can't be undone.")
             }
         }
+    }
+
+    /// Footer hint describing the currently selected logging layout.
+    private var layoutDetail: String {
+        (LogLayout(rawValue: logLayout) ?? .compact).detail
     }
 
     private func startExport() {
