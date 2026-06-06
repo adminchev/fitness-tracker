@@ -26,6 +26,13 @@ struct ExerciseFocusView: View {
     }
 
     var body: some View {
+        content
+            // Hide the tab bar while logging so a mis-tap can't navigate away mid-set.
+            .toolbar(.hidden, for: .tabBar)
+    }
+
+    @ViewBuilder
+    private var content: some View {
         switch layout {
         case .accessible:
             if let exercise = currentExercise {

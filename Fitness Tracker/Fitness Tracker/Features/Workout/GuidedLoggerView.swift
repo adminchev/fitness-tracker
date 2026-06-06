@@ -3,8 +3,9 @@ import SwiftData
 
 /// The accessible ("fried-forearm") logger: one exercise, one field at a time, every
 /// value a giant stepper. Designed so the right action is easy to hit and the wrong
-/// one is hard to trigger — pinned context, a deliberate hold to commit a set, Undo
-/// for stray taps, and destructive actions tucked behind a guarded menu.
+/// one is hard to trigger — pinned context, controls anchored in the reachable lower
+/// third, a deliberate hold to commit a set, a large Undo for stray taps, and
+/// destructive actions tucked behind a guarded menu. VoiceOver- and Dynamic-Type-aware.
 struct GuidedLoggerView: View {
     @Bindable var exercise: Exercise
     @Environment(\.modelContext) private var modelContext
@@ -22,12 +23,11 @@ struct GuidedLoggerView: View {
     private var currentStep: LogStep? { steps.indices.contains(stepIndex) ? steps[stepIndex] : nil }
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
             if let step = currentStep {
                 header(step)
-                Spacer(minLength: 0)
+                Spacer(minLength: 0)            // void sits up top; controls stay reachable
                 fieldSection(step)
-                Spacer(minLength: 0)
                 controls(step)
             } else {
                 ContentUnavailableView("No sets", systemImage: "checkmark.circle")
@@ -58,6 +58,8 @@ struct GuidedLoggerView: View {
             fieldDots(step)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(headerLabel(step))
     }
 
     private func armAndSet(_ step: LogStep) -> String {
@@ -70,7 +72,14 @@ struct GuidedLoggerView: View {
         return "\(arm)Set \(step.setNumber) of \(step.setCount)"
     }
 
-    /// Dots showing field progress within the current set.
+    private func headerLabel(_ step: LogStep) -> String {
+        let fields = setFields(for: step)
+        let index = (fields.firstIndex(of: step.field) ?? 0) + 1
+        return "\(armAndSet(step)), \(fieldTitle(step.field)), field \(index) of \(fields.count)"
+    }
+
+    /// Dots showing field progress within the current set (decorative — the header's
+    /// accessibility label carries this for VoiceOver).
     private func fieldDots(_ step: LogStep) -> some View {
         let fields = setFields(for: step)
         let index = fields.firstIndex(of: step.field) ?? 0
@@ -81,6 +90,7 @@ struct GuidedLoggerView: View {
                     .frame(width: 9, height: 9)
             }
         }
+        .accessibilityHidden(true)
     }
 
     // MARK: - The one field
@@ -98,6 +108,11 @@ struct GuidedLoggerView: View {
                         equipment: exercise.equipment, scale: scale,
                         onChange: { snapshotForUndo(step) })
                 .padding(.top, 4)
+            if isEmpty(step) {
+                Text("Tap the number to type, or use − / +")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -107,6 +122,16 @@ struct GuidedLoggerView: View {
         case .reps: "Reps"
         case .duration: "Hold"
         case .effort: scale.rawValue
+        }
+    }
+
+    /// Whether the current field has no value yet (so we show the tap-to-enter hint).
+    private func isEmpty(_ step: LogStep) -> Bool {
+        switch step.field {
+        case .weight:   step.set.weight == nil
+        case .reps:     step.set.reps == nil
+        case .duration: step.set.durationSeconds == nil
+        case .effort:   step.set.rpe == nil
         }
     }
 
@@ -127,27 +152,25 @@ struct GuidedLoggerView: View {
         }
     }
 
-    // MARK: - Controls (undo · advance)
+    // MARK: - Controls (advance · back · undo)
 
     private func controls(_ step: LogStep) -> some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 12) {
             advanceButton(step)
-            HStack {
-                Button {
-                    back()
-                } label: {
+            HStack(spacing: 12) {
+                Button(action: back) {
                     Label("Back", systemImage: "chevron.left")
+                        .frame(maxWidth: .infinity, minHeight: 50)
                 }
-                Spacer()
-                Button {
-                    undo()
-                } label: {
+                .buttonStyle(.bordered)
+                Button(action: undo) {
                     Label("Undo", systemImage: "arrow.uturn.backward")
+                        .frame(maxWidth: .infinity, minHeight: 50)
                 }
+                .buttonStyle(.bordered)
                 .disabled(undoStack.isEmpty)
             }
             .font(.headline)
-            .controlSize(.large)
         }
     }
 
@@ -190,6 +213,7 @@ struct GuidedLoggerView: View {
         } label: {
             Image(systemName: "ellipsis.circle")
         }
+        .accessibilityLabel("More actions")
     }
 
     // MARK: - Step shape helpers
@@ -295,20 +319,21 @@ private struct GuidedField: View {
     var body: some View {
         switch field {
         case .weight:
-            BigStepper(value: $set.weight, step: equipment.loadStep,
+            BigStepper(value: $set.weight, step: equipment.loadStep, label: "Weight",
                        unit: equipment.loadUnit, onChange: onChange)
         case .reps:
-            BigStepper(value: $set.reps.asDouble, step: 1, unit: "reps",
+            BigStepper(value: $set.reps.asDouble, step: 1, label: "Reps", unit: "reps",
                        isInteger: true, onChange: onChange)
         case .duration:
             VStack(spacing: 10) {
                 TimedSetField(seconds: $set.durationSeconds, large: true)
                     .font(.system(size: 44, weight: .semibold).monospacedDigit())
+                    .accessibilityLabel("Hold seconds")
                 Text("sec").font(.headline).foregroundStyle(.secondary)
             }
         case .effort:
-            BigStepper(value: effortBinding, step: 0.5, unit: scale.rawValue,
-                       upperBound: 10, onChange: onChange)
+            BigStepper(value: effortBinding, step: 0.5, label: scale.rawValue,
+                       unit: scale.rawValue, upperBound: 10, onChange: onChange)
         }
     }
 
@@ -322,12 +347,15 @@ private struct GuidedField: View {
 }
 
 /// A full-width button that fires only after a brief hold, filling as you press — so a
-/// shaky double-tap can't commit or skip a set. Releasing early cancels.
+/// shaky double-tap can't commit or skip a set. Releasing early cancels. For VoiceOver /
+/// Switch Control it acts as an ordinary button (activation fires immediately; the hold
+/// is a sighted-touch anti-mistap device).
 private struct HoldButton: View {
     let title: String
     let systemImage: String
     let action: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var progress: CGFloat = 0
     @State private var task: Task<Void, Never>?
 
@@ -350,6 +378,10 @@ private struct HoldButton: View {
                 .onChanged { _ in startHold() }
                 .onEnded { _ in cancelHold() }
         )
+        .accessibilityElement()
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { action() }
     }
 
     private func startHold() {
@@ -370,6 +402,10 @@ private struct HoldButton: View {
     private func cancelHold() {
         task?.cancel()
         task = nil
-        withAnimation(.easeOut(duration: 0.15)) { progress = 0 }
+        if reduceMotion {
+            progress = 0
+        } else {
+            withAnimation(.easeOut(duration: 0.15)) { progress = 0 }
+        }
     }
 }
