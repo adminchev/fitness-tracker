@@ -493,6 +493,22 @@ struct BigStepperTests {
     }
 }
 
+struct NumericParseTests {
+
+    @Test func parsesDotAndLocaleDecimalSeparators() {
+        let us = Locale(identifier: "en_US")
+        let fr = Locale(identifier: "fr_FR")   // comma decimal separator
+
+        #expect(NumericField.parse("8.5", locale: us) == 8.5)
+        #expect(NumericField.parse("8", locale: us) == 8)
+        #expect(NumericField.parse("8,5", locale: fr) == 8.5)   // comma accepted
+        #expect(NumericField.parse("8", locale: fr) == 8)
+        #expect(NumericField.parse("8,", locale: fr) == 8.0)    // trailing separator tolerated
+        #expect(NumericField.parse("abc", locale: us) == nil)
+        #expect(NumericField.parse("", locale: us) == nil)
+    }
+}
+
 struct EffortScaleTests {
 
     @Test func displayAndCanonicalConvertAndRoundTrip() {

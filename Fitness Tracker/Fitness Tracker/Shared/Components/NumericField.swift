@@ -44,12 +44,17 @@ struct NumericField: View {
                                             syncFromValue()
                                         }
                                         .buttonStyle(.bordered)
+                                        .font(.body)
                                     }
                                 }
                             }
                         }
                         Spacer()
+                        // Pin a normal font: the field's caller may set a huge font
+                        // (the accessible stepper does), which would otherwise inflate
+                        // this keyboard-accessory button.
                         Button("Done") { focused = false }
+                            .font(.body)
                     }
                 }
             }
@@ -69,15 +74,30 @@ struct NumericField: View {
         let newValue: Double?
         if trimmed.isEmpty {
             newValue = nil
-        } else if let parsed = Double(trimmed) {
+        } else if let parsed = Self.parse(trimmed) {
             newValue = parsed
         } else {
-            return   // Unparseable in-progress input (e.g. "12.") — leave `text` as-is.
+            return   // Unparseable in-progress input (e.g. "12,") — leave `text` as-is.
         }
         // Flag only on a real change, so the `value` onChange is guaranteed to fire
         // and clear it; a no-op assignment would otherwise leave it stuck true.
         guard newValue != value else { return }
         committing = true
         value = newValue
+    }
+
+    /// Locale-tolerant parse: the number pad inserts the *locale's* decimal separator
+    /// (a comma in much of the world), which `Double.init` doesn't accept — so a comma
+    /// entry like "8,5" would otherwise be silently rejected.
+    static func parse(_ string: String, locale: Locale = .current) -> Double? {
+        if let value = Double(string) { return value }
+        var normalized = string
+        if let grouping = locale.groupingSeparator {
+            normalized = normalized.replacingOccurrences(of: grouping, with: "")
+        }
+        if let decimal = locale.decimalSeparator, decimal != "." {
+            normalized = normalized.replacingOccurrences(of: decimal, with: ".")
+        }
+        return Double(normalized)
     }
 }
