@@ -7,6 +7,7 @@ struct WorkoutDetailView: View {
     @Bindable var workout: Workout
     @Environment(\.modelContext) private var modelContext
     @State private var showingExercisePicker = false
+    @State private var showingDatePicker = false
 
     private var sortedExercises: [Exercise] {
         (workout.exercises ?? []).sortedByOrder()
@@ -15,7 +16,18 @@ struct WorkoutDetailView: View {
     var body: some View {
         List {
             Section {
-                DatePicker("Date", selection: $workout.date, displayedComponents: .date)
+                // Present the calendar as a modal sheet rather than the inline
+                // popover — the popover lets a dismissing tap fall through to the
+                // buttons behind it; a sheet blocks the background while it's open.
+                Button {
+                    showingDatePicker = true
+                } label: {
+                    LabeledContent("Date") {
+                        Text(workout.date.formatted(date: .abbreviated, time: .omitted))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                .buttonStyle(.plain)
                 if let plan = workout.trainingPlan {
                     LabeledContent("Plan", value: plan.name)
                 }
@@ -43,6 +55,21 @@ struct WorkoutDetailView: View {
             ExercisePickerView { definition in
                 addExercise(definition)
             }
+        }
+        .sheet(isPresented: $showingDatePicker) {
+            NavigationStack {
+                DatePicker("Date", selection: $workout.date, displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .padding(.horizontal)
+                    .navigationTitle("Workout Date")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showingDatePicker = false }
+                        }
+                    }
+            }
+            .presentationDetents([.medium, .large])
         }
         .onDisappear(perform: trimEmptySets)
     }
@@ -74,6 +101,14 @@ struct WorkoutDetailView: View {
         modelContext.insert(exercise)
         exercise.definition = definition
         exercise.workout = workout
+        // Open one set straight away so the exercise is ready to log — both arms if unilateral.
+        let lead = AppSettings.leadSide
+        let sides: [SetSide?] = exercise.tracksSides ? [lead, lead.opposite] : [nil]
+        for (order, side) in sides.enumerated() {
+            let set = WorkoutSet(side: side?.rawValue ?? "", order: order)
+            modelContext.insert(set)
+            set.exercise = exercise
+        }
     }
 
     /// Remove leftover empty sets — but only in exercises you actually started, so an

@@ -8,6 +8,7 @@ struct WorkoutListView: View {
     @State private var viewModel = WorkoutListViewModel()
     @State private var showingPlanPicker = false
     @State private var activeWorkout: Workout?
+    @State private var workoutToDelete: Workout?
 
     var body: some View {
         NavigationStack {
@@ -24,9 +25,8 @@ struct WorkoutListView: View {
                     }
                 }
                 .onDelete { offsets in
-                    for index in offsets {
-                        viewModel.delete(viewModel.workouts[index], in: modelContext)
-                    }
+                    // Confirm before deleting — sessions can't be recovered.
+                    workoutToDelete = offsets.first.map { viewModel.workouts[$0] }
                 }
             }
             .navigationTitle("Workouts")
@@ -66,11 +66,27 @@ struct WorkoutListView: View {
                     activeWorkout = viewModel.createWorkout(from: plan, in: modelContext)
                 }
             }
+            .alert(
+                "Delete this workout?",
+                isPresented: Binding(get: { workoutToDelete != nil }, set: { if !$0 { workoutToDelete = nil } }),
+                presenting: workoutToDelete
+            ) { workout in
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) {
+                    viewModel.delete(workout, in: modelContext)
+                }
+            } message: { workout in
+                let name = workout.name.isEmpty ? "Untitled Workout" : workout.name
+                let date = workout.date.formatted(date: .abbreviated, time: .omitted)
+                Text("\(name) — \(date)\nThis session and its logged sets will be permanently removed.")
+            }
             .navigationDestination(item: $activeWorkout) { workout in
                 WorkoutDetailView(workout: workout)
             }
+            // On the List (not the NavigationStack) so it re-runs on pop-back —
+            // re-sorting after a session's date is edited in the detail view.
+            .onAppear { viewModel.fetch(in: modelContext) }
         }
-        .onAppear { viewModel.fetch(in: modelContext) }
     }
 }
 

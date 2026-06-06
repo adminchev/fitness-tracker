@@ -43,7 +43,8 @@ import SwiftData
             let sides: [SetSide?] = exercise.tracksSides ? [lead, lead.opposite] : [nil]
             var order = 0
             for side in sides {
-                for _ in 0..<max(template.targetSets, 0) {
+                // Always open at least one set per side — you did at least one.
+                for _ in 0..<max(template.targetSets, 1) {
                     let set = WorkoutSet(rpe: template.targetRPEValue, side: side?.rawValue ?? "", order: order)
                     order += 1
                     context.insert(set)
