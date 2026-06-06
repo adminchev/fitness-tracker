@@ -31,4 +31,10 @@ import SwiftData
     var equipment: Equipment {
         Equipment(rawValue: equipmentRaw) ?? .freeWeight
     }
+
+    /// The load increment for steppers and suggestion chips: the catalog entry's
+    /// custom step if set, otherwise the equipment default.
+    var loadStep: Double {
+        definition?.stepKg ?? equipment.loadStep
+    }
 }

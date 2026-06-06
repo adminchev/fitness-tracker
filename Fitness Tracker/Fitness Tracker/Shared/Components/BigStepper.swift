@@ -29,10 +29,16 @@ struct BigStepper: View {
         max((value ?? 0) + delta, 0)
     }
 
+    /// The active increment, formatted (2.5 / 1 / 1.25 / 0.5) — shown on the buttons
+    /// so what a tap does is never a guess, and updates live if the step changes.
+    private var stepText: String {
+        step.formatted(.number.precision(.fractionLength(0...2)))
+    }
+
     var body: some View {
         HStack(spacing: 16) {
-            StepButton(systemName: "minus",
-                       accessibilityLabel: "Decrease \(label)",
+            StepButton(text: "−\(stepText)",
+                       accessibilityLabel: "Decrease \(label) by \(stepText)",
                        onBegin: { snapshotThenStep(-step) },
                        onRepeat: { step(by: -step) })
             VStack(spacing: 6) {
@@ -48,11 +54,13 @@ struct BigStepper: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            StepButton(systemName: "plus",
-                       accessibilityLabel: "Increase \(label)",
+            StepButton(text: "+\(stepText)",
+                       accessibilityLabel: "Increase \(label) by \(stepText)",
                        onBegin: { snapshotThenStep(step) },
                        onRepeat: { step(by: step) })
         }
+        // Tactile confirmation of every change — lets you keep your eyes off the screen.
+        .sensoryFeedback(.selection, trigger: value)
     }
 
     private var accessibilityValue: String {
@@ -76,13 +84,13 @@ struct BigStepper: View {
 /// immediately then `onRepeat` on an accelerating timer until release. Exposed to
 /// assistive tech as a button that performs a single step per activation.
 private struct StepButton: View {
-    let systemName: String
+    let text: String
     let accessibilityLabel: String
     let onBegin: () -> Void
     let onRepeat: () -> Void
 
     @ScaledMetric(relativeTo: .largeTitle) private var size: CGFloat = 84
-    @ScaledMetric(relativeTo: .largeTitle) private var glyph: CGFloat = 30
+    @ScaledMetric(relativeTo: .largeTitle) private var glyph: CGFloat = 26
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var repeatTask: Task<Void, Never>?
     @GestureState private var pressed = false
@@ -90,8 +98,11 @@ private struct StepButton: View {
     private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 18) }
 
     var body: some View {
-        Image(systemName: systemName)
-            .font(.system(size: min(glyph, 44), weight: .bold))
+        Text(text)
+            .font(.system(size: min(glyph, 40), weight: .bold).monospacedDigit())
+            .minimumScaleFactor(0.5)
+            .lineLimit(1)
+            .padding(.horizontal, 6)
             .foregroundStyle(.tint)
             .frame(width: min(size, 110), height: min(size, 110))
             .background(Color.accentColor.opacity(pressed ? 0.28 : 0.14), in: shape)

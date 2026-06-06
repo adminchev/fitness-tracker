@@ -387,6 +387,18 @@ struct EquipmentTests {
         #expect(Equipment.bodyweight.loadStep == 0)
         #expect(Equipment.bodyweight.loadUnit == nil)
     }
+
+    @MainActor
+    @Test func exerciseLoadStepPrefersDefinitionOverride() {
+        let exercise = Exercise(name: "Wrist flexion")
+        exercise.equipmentRaw = Equipment.freeWeight.rawValue
+        #expect(exercise.loadStep == 2.5)                 // falls back to equipment default
+
+        let definition = ExerciseDefinition(name: "Wrist flexion")
+        definition.stepKg = 1.25                          // microplates
+        exercise.definition = definition
+        #expect(exercise.loadStep == 1.25)                // custom step wins
+    }
 }
 
 @MainActor

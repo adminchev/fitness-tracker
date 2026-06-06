@@ -182,7 +182,7 @@ private struct FocusedExercisePage: View {
     private func weightSuggestions(forIndex index: Int) -> [Double] {
         let prior = PreviousSession.sets(for: exercise, on: activeSide)
         let base = prior.indices.contains(index) ? prior[index].weight : sets(on: activeSide).last?.weight
-        let step = exercise.equipment.loadStep
+        let step = exercise.loadStep
         guard let base, base > 0, step > 0 else { return [] }
         let candidates = [base - 2 * step, base - step, base, base + step, base + 2 * step]
         return Array(Set(candidates.filter { $0 > 0 })).sorted()

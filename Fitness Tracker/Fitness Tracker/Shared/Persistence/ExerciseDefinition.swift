@@ -14,6 +14,9 @@ import SwiftData
     /// Unilateral movement — sets carry an L/R side tag.
     var tracksSides: Bool = false
     var equipmentRaw: String = Equipment.freeWeight.rawValue
+    /// Per-exercise load increment in kg (microplates, odd implements). `nil` falls
+    /// back to the equipment's default step. Optional so it's CloudKit-safe.
+    var stepKg: Double? = nil
     /// `.nullify`: deleting a definition unlinks history but never deletes logged work.
     @Relationship(deleteRule: .nullify, inverse: \Exercise.definition) var exercises: [Exercise]? = []
     @Relationship(deleteRule: .nullify, inverse: \TemplateExercise.definition) var templateExercises: [TemplateExercise]? = []

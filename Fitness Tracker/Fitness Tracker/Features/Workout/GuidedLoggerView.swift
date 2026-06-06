@@ -105,7 +105,7 @@ struct GuidedLoggerView: View {
                     .foregroundStyle(.tertiary)
             }
             GuidedField(set: step.set, field: step.field,
-                        equipment: exercise.equipment, scale: scale,
+                        equipment: exercise.equipment, weightStep: exercise.loadStep, scale: scale,
                         onChange: { snapshotForUndo(step) })
                 .padding(.top, 4)
             if isEmpty(step) {
@@ -199,12 +199,23 @@ struct GuidedLoggerView: View {
             .frame(maxWidth: .infinity, minHeight: 64)
     }
 
+    private static let incrementOptions: [Double] = [0.5, 1, 1.25, 2.5, 5, 10]
+
     private var moreMenu: some View {
         Menu {
             Button { addSet() } label: { Label("Add set", systemImage: "plus") }
             if exercise.tracksSides, let step = currentStep {
                 Button { copyToOtherSide(from: step.set) } label: {
                     Label("Copy this arm → other", systemImage: "arrow.left.arrow.right")
+                }
+            }
+            // Weight increment is a set-once, persists-on-the-catalog preference, so it
+            // lives behind the guarded menu rather than cluttering the logging screen.
+            if exercise.equipment.loadUnit == "kg", exercise.definition != nil {
+                Picker("Weight increment", selection: incrementBinding) {
+                    ForEach(Self.incrementOptions, id: \.self) { value in
+                        Text("\(value.formatted(.number.precision(.fractionLength(0...2)))) kg").tag(value)
+                    }
                 }
             }
             Button(role: .destructive) { confirmingDelete = true } label: {
@@ -214,6 +225,13 @@ struct GuidedLoggerView: View {
             Image(systemName: "ellipsis.circle")
         }
         .accessibilityLabel("More actions")
+    }
+
+    private var incrementBinding: Binding<Double> {
+        Binding(
+            get: { exercise.definition?.stepKg ?? exercise.equipment.loadStep },
+            set: { exercise.definition?.stepKg = $0 }
+        )
     }
 
     // MARK: - Step shape helpers
@@ -313,13 +331,14 @@ private struct GuidedField: View {
     @Bindable var set: WorkoutSet
     let field: LogField
     let equipment: Equipment
+    let weightStep: Double
     let scale: EffortScale
     let onChange: () -> Void
 
     var body: some View {
         switch field {
         case .weight:
-            BigStepper(value: $set.weight, step: equipment.loadStep, label: "Weight",
+            BigStepper(value: $set.weight, step: weightStep, label: "Weight",
                        unit: equipment.loadUnit, onChange: onChange)
         case .reps:
             BigStepper(value: $set.reps.asDouble, step: 1, label: "Reps", unit: "reps",
@@ -358,6 +377,7 @@ private struct HoldButton: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var progress: CGFloat = 0
     @State private var task: Task<Void, Never>?
+    @State private var committed = false
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -381,7 +401,8 @@ private struct HoldButton: View {
         .accessibilityElement()
         .accessibilityLabel(title)
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction { action() }
+        .accessibilityAction { commit() }
+        .sensoryFeedback(.success, trigger: committed)
     }
 
     private func startHold() {
@@ -393,10 +414,15 @@ private struct HoldButton: View {
                 if Task.isCancelled { return }
                 progress = CGFloat(tick) / CGFloat(ticks)
             }
-            action()
+            commit()
             progress = 0
             task = nil
         }
+    }
+
+    private func commit() {
+        committed.toggle()   // fires the success haptic
+        action()
     }
 
     private func cancelHold() {
