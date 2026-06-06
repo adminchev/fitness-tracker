@@ -9,7 +9,7 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @AppStorage(AppSettings.leadSideKey) private var leadSide = SetSide.right.rawValue
     @AppStorage(AppSettings.effortScaleKey) private var effortScale = EffortScale.rpe.rawValue
-    @AppStorage(AppSettings.logLayoutKey) private var logLayout = LogLayout.compact.rawValue
+    @AppStorage(AppSettings.logLayoutKey) private var logLayout = LogLayout.standard.rawValue
 
     @State private var exportDocument: BackupDocument?
     @State private var isExporting = false
@@ -96,7 +96,7 @@ struct SettingsView: View {
 
     /// Footer hint describing the currently selected logging layout.
     private var layoutDetail: String {
-        (LogLayout(rawValue: logLayout) ?? .compact).detail
+        (LogLayout(rawValue: logLayout) ?? .standard).detail
     }
 
     private func startExport() {

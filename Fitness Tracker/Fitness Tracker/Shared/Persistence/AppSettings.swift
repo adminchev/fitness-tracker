@@ -6,28 +6,34 @@ enum EffortScale: String, CaseIterable, Identifiable {
     case rpe = "RPE"
     case rir = "RIR"
     var id: String { rawValue }
+
+    /// Canonical RPE → the value shown for this scale (RIR mirrors around 10).
+    func display(_ rpe: Double) -> Double { self == .rir ? 10 - rpe : rpe }
+
+    /// A value shown for this scale → canonical RPE for storage. Inverse of `display`.
+    func canonical(_ shown: Double) -> Double { self == .rir ? 10 - shown : shown }
 }
 
-/// How the per-set logging controls are drawn. Adding a new layout is a matter of
-/// adding a case here and a matching view that `SetRowView` switches to — the rest
-/// of the app only ever talks to `SetRowView`.
+/// How the per-set logging controls are drawn. `ExerciseFocusView` reads the
+/// resolved value and renders either the standard paged row logger or the
+/// accessible guided stepper flow.
 enum LogLayout: String, CaseIterable, Identifiable {
-    case compact = "Compact"
-    case bigButtons = "Big buttons"
+    case standard = "Standard"
+    case accessible = "Accessible"
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .compact: "Compact"
-        case .bigButtons: "Big buttons"
+        case .standard: "Standard"
+        case .accessible: "Accessible"
         }
     }
 
     /// One-line explanation shown under the Settings picker.
     var detail: String {
         switch self {
-        case .compact: "Dense rows — tap a field and type."
-        case .bigButtons: "Large +/− steppers, easy to hit mid-set."
+        case .standard: "Dense rows — tap a field and type."
+        case .accessible: "One giant control at a time, hard to mistap."
         }
     }
 }
@@ -50,6 +56,6 @@ enum AppSettings {
 
     /// Which set-logging control layout the focused logger renders.
     static var logLayout: LogLayout {
-        LogLayout(rawValue: UserDefaults.standard.string(forKey: logLayoutKey) ?? "") ?? .compact
+        LogLayout(rawValue: UserDefaults.standard.string(forKey: logLayoutKey) ?? "") ?? .standard
     }
 }

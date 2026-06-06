@@ -388,3 +388,106 @@ struct EquipmentTests {
         #expect(Equipment.bodyweight.loadUnit == nil)
     }
 }
+
+@MainActor
+struct GuidedLoggerTests {
+
+    // Returns the container (not just its context) so the caller retains it — a
+    // ModelContext doesn't keep its container alive, so returning only the context
+    // would leave it dangling and crash on use.
+    private func makeContainer() throws -> ModelContainer {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        return try ModelContainer(
+            for: Workout.self, Exercise.self, WorkoutSet.self,
+            TrainingPlan.self, TemplateExercise.self, ExerciseDefinition.self,
+            configurations: config
+        )
+    }
+
+    private func addSets(_ count: Int, side: String, startOrder: Int, to exercise: Exercise, in context: ModelContext) {
+        for i in 0..<count {
+            let set = WorkoutSet(side: side, order: startOrder + i)
+            context.insert(set)
+            set.exercise = exercise
+        }
+    }
+
+    @Test func loadedRepsExerciseEmitsWeightRepsEffort() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let exercise = Exercise(name: "Curl", order: 0)
+        exercise.equipmentRaw = Equipment.freeWeight.rawValue
+        context.insert(exercise)
+        addSets(2, side: "", startOrder: 0, to: exercise, in: context)
+
+        let steps = GuidedLogger.steps(for: exercise)
+        #expect(steps.count == 6)                                   // 2 sets × (weight, reps, effort)
+        #expect(Array(steps.prefix(3).map(\.field)) == [.weight, .reps, .effort])
+        #expect(steps.allSatisfy { $0.setCount == 2 })
+        #expect(steps[0].setNumber == 1 && steps[3].setNumber == 2)
+    }
+
+    @Test func bodyweightExerciseSkipsWeight() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let exercise = Exercise(name: "Pushup", order: 0)
+        exercise.equipmentRaw = Equipment.bodyweight.rawValue
+        context.insert(exercise)
+        addSets(1, side: "", startOrder: 0, to: exercise, in: context)
+
+        #expect(GuidedLogger.steps(for: exercise).map(\.field) == [.reps, .effort])
+    }
+
+    @Test func timedLoadedExerciseUsesDuration() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let exercise = Exercise(name: "Hold", order: 0)
+        exercise.equipmentRaw = Equipment.band.rawValue          // band is loaded
+        exercise.isTimed = true
+        context.insert(exercise)
+        addSets(1, side: "", startOrder: 0, to: exercise, in: context)
+
+        #expect(GuidedLogger.steps(for: exercise).map(\.field) == [.weight, .duration, .effort])
+    }
+
+    @Test func sidedExerciseWalksLeadArmFirstWithPerSideNumbering() throws {
+        UserDefaults.standard.set(SetSide.right.rawValue, forKey: AppSettings.leadSideKey)
+        let container = try makeContainer()
+        let context = container.mainContext
+        let exercise = Exercise(name: "Wrist flexion", order: 0)
+        exercise.equipmentRaw = Equipment.freeWeight.rawValue
+        exercise.tracksSides = true
+        context.insert(exercise)
+        addSets(2, side: "R", startOrder: 0, to: exercise, in: context)
+        addSets(2, side: "L", startOrder: 2, to: exercise, in: context)
+
+        let steps = GuidedLogger.steps(for: exercise)
+        #expect(steps.count == 12)                                 // 4 sets × 3 fields
+        #expect(steps.first?.set.side == "R")                      // lead arm first
+        #expect(steps.last?.set.side == "L")
+        let firstLeft = steps.first { $0.set.side == "L" }
+        #expect(firstLeft?.setNumber == 1)                         // numbering resets per side
+        #expect(firstLeft?.setCount == 2)
+    }
+}
+
+struct BigStepperTests {
+
+    @Test func adjustStepsAndClampsAtZero() {
+        #expect(BigStepper.adjust(nil, by: -2.5) == 0)             // nil treated as 0
+        #expect(BigStepper.adjust(nil, by: 2.5) == 2.5)
+        #expect(BigStepper.adjust(2.5, by: 2.5) == 5)
+        #expect(BigStepper.adjust(1, by: -5) == 0)                 // never goes negative
+    }
+}
+
+struct EffortScaleTests {
+
+    @Test func displayAndCanonicalConvertAndRoundTrip() {
+        #expect(EffortScale.rpe.display(8) == 8)                   // RPE shows canonical as-is
+        #expect(EffortScale.rpe.canonical(8) == 8)
+        #expect(EffortScale.rir.display(8) == 2)                   // RIR = 10 − RPE
+        #expect(EffortScale.rir.canonical(2) == 8)
+        #expect(EffortScale.rir.canonical(EffortScale.rir.display(7)) == 7)
+    }
+}

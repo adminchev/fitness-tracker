@@ -27,13 +27,12 @@ struct EffortField: View {
 
     /// The value to show for the current scale (RIR = 10 − RPE).
     private var displayValue: Double? {
-        guard let rpe else { return nil }
-        return scale == .rir ? 10 - rpe : rpe
+        rpe.map(scale.display)
     }
 
     /// Convert a shown value back to canonical RPE for storage.
     private func canonical(from shown: Double) -> Double {
-        scale == .rir ? 10 - shown : shown
+        scale.canonical(shown)
     }
 
     private func text(_ value: Double) -> String {

@@ -1,23 +1,44 @@
 internal import SwiftUI
 import SwiftData
 
-/// Full-screen, one-exercise-at-a-time logger. Opened by tapping an exercise in the
-/// workout overview. Swipe horizontally to move between the session's exercises;
-/// the nav back button (or edge-swipe) returns to the overview list.
+/// Full-screen logger opened by tapping an exercise in the workout overview.
+/// Standard mode is a swipeable page per exercise; Accessible mode shows the single
+/// tapped exercise's guided stepper flow (no inter-exercise swipe). The layout comes
+/// from Settings and can be flipped any time.
 struct ExerciseFocusView: View {
     let workout: Workout
     @State private var selection: PersistentIdentifier?
+    @AppStorage(AppSettings.logLayoutKey) private var layoutRaw = LogLayout.standard.rawValue
 
     init(workout: Workout, startExerciseID: PersistentIdentifier? = nil) {
         self.workout = workout
         _selection = State(initialValue: startExerciseID)
     }
 
+    private var layout: LogLayout { LogLayout(rawValue: layoutRaw) ?? .standard }
+
     private var exercises: [Exercise] {
         (workout.exercises ?? []).sortedByOrder()
     }
 
+    private var currentExercise: Exercise? {
+        exercises.first { $0.persistentModelID == selection } ?? exercises.first
+    }
+
     var body: some View {
+        switch layout {
+        case .accessible:
+            if let exercise = currentExercise {
+                GuidedLoggerView(exercise: exercise)
+            } else {
+                ContentUnavailableView("No exercises", systemImage: "dumbbell")
+            }
+        case .standard:
+            standardPager
+        }
+    }
+
+    private var standardPager: some View {
         TabView(selection: $selection) {
             ForEach(Array(exercises.enumerated()), id: \.element.persistentModelID) { index, exercise in
                 FocusedExercisePage(exercise: exercise, position: index + 1, total: exercises.count)
@@ -26,17 +47,13 @@ struct ExerciseFocusView: View {
         }
         .tabViewStyle(.page(indexDisplayMode: .always))
         .indexViewStyle(.page(backgroundDisplayMode: .always))
-        .navigationTitle(currentName)
+        .navigationTitle(currentExercise?.name ?? "Workout")
         .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private var currentName: String {
-        exercises.first { $0.persistentModelID == selection }?.name ?? "Workout"
     }
 }
 
-/// One exercise's focused logging page: a Left/Right tab (if unilateral), that side's
-/// sets with big controls, and Add Set / Copy buttons sized for use mid-workout.
+/// One exercise's focused logging page (Standard mode): a Left/Right tab (if unilateral),
+/// that side's sets with the compact controls, and Add Set / Copy buttons.
 private struct FocusedExercisePage: View {
     @Bindable var exercise: Exercise
     let position: Int
@@ -77,7 +94,7 @@ private struct FocusedExercisePage: View {
                 VStack(spacing: 10) {
                     ForEach(Array(visibleSets.enumerated()), id: \.element.persistentModelID) { index, set in
                         HStack(spacing: 12) {
-                            SetRowView(
+                            CompactSetRow(
                                 set: set,
                                 setNumber: index + 1,
                                 isTimed: exercise.isTimed,
@@ -156,7 +173,7 @@ private struct FocusedExercisePage: View {
     /// Weight chips for a set: last session's matching weight ± the equipment's load
     /// step (so bands suggest ±1, plates ±2.5 — matching the steppers).
     private func weightSuggestions(forIndex index: Int) -> [Double] {
-        let prior = previousSets(on: activeSide)
+        let prior = PreviousSession.sets(for: exercise, on: activeSide)
         let base = prior.indices.contains(index) ? prior[index].weight : sets(on: activeSide).last?.weight
         let step = exercise.equipment.loadStep
         guard let base, base > 0, step > 0 else { return [] }
@@ -166,40 +183,16 @@ private struct FocusedExercisePage: View {
 
     /// Rep chips for a set: last session's matching reps ± a couple.
     private func repSuggestions(forIndex index: Int) -> [Double] {
-        let prior = previousSets(on: activeSide)
+        let prior = PreviousSession.sets(for: exercise, on: activeSide)
         let base = prior.indices.contains(index) ? prior[index].reps : sets(on: activeSide).last?.reps
         guard let base, base > 0 else { return [] }
         return Array(Set([base - 2, base - 1, base, base + 1, base + 2].filter { $0 > 0 })).sorted().map(Double.init)
     }
 
     private var lastTimeSummary: String? {
-        let previous = previousSets(on: nil)
+        let previous = PreviousSession.sets(for: exercise)
         guard !previous.isEmpty else { return nil }
-        return "Last: " + previous.map(describe).joined(separator: ", ")
-    }
-
-    private func previousSets(on side: SetSide?) -> [WorkoutSet] {
-        guard let definition = exercise.definition,
-              let currentDate = exercise.workout?.date else { return [] }
-        let priorSessions = (definition.exercises ?? []).filter { other in
-            guard let date = other.workout?.date else { return false }
-            return other.persistentModelID != exercise.persistentModelID && date < currentDate
-        }
-        guard let mostRecent = priorSessions.max(by: {
-            ($0.workout?.date ?? .distantPast) < ($1.workout?.date ?? .distantPast)
-        }) else { return [] }
-        let sets = (mostRecent.sets ?? []).sortedByOrder()
-        guard let side else { return sets }
-        return sets.filter { $0.side == side.rawValue }
-    }
-
-    private func describe(_ set: WorkoutSet) -> String {
-        let sidePrefix = set.side.isEmpty ? "" : "\(set.side) "
-        let load = set.weight.map { "\(format($0)) × " } ?? ""
-        let core = exercise.isTimed
-            ? "\(set.durationSeconds.map(String.init) ?? "—")s"
-            : (set.reps.map(String.init) ?? "—")
-        return sidePrefix + load + core
+        return "Last: " + previous.map { PreviousSession.describe($0, isTimed: exercise.isTimed) }.joined(separator: ", ")
     }
 
     // MARK: - Mutation
@@ -208,7 +201,7 @@ private struct FocusedExercisePage: View {
         let side: SetSide? = exercise.tracksSides ? selectedSide : nil
         let sideSets = sets(on: side)
         let index = sideSets.count
-        let priorForSide = previousSets(on: side)
+        let priorForSide = PreviousSession.sets(for: exercise, on: side)
         let template = priorForSide.indices.contains(index) ? priorForSide[index] : sideSets.last
         let newOrder = (sortedSets.map(\.order).max() ?? -1) + 1
         let newSet = WorkoutSet(
@@ -236,9 +229,5 @@ private struct FocusedExercisePage: View {
             modelContext.insert(copy)
             copy.exercise = exercise
         }
-    }
-
-    private func format(_ value: Double) -> String {
-        value.formatted(.number.precision(.fractionLength(0...1)))
     }
 }
